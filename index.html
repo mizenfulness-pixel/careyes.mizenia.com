@@ -289,6 +289,67 @@
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+  /* ── Share card ── */
+  .share-section {
+    width: 100%; max-width: 440px;
+    margin-top: 10px; margin-bottom: 2px;
+    opacity: 0; animation: fadeUp 1.2s ease forwards 0.92s;
+  }
+  .btn-share {
+    width: 100%;
+    border: 1px solid rgba(201,168,76,0.22);
+    background: rgba(13,26,15,0.55);
+    color: var(--muted);
+    font-family: 'Montserrat', sans-serif; font-weight: 300;
+    font-size: 8.5px; letter-spacing: 0.38em; text-transform: uppercase;
+    padding: 13px 20px; border-radius: 2px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    transition: all 0.35s; backdrop-filter: blur(4px);
+    position: relative;
+  }
+  .btn-share:hover { border-color: rgba(201,168,76,0.48); color: var(--gold-light); }
+  .btn-share.generating {
+    pointer-events: none; opacity: 0.6;
+  }
+  .btn-share svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+  /* Preview modal */
+  .share-modal {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(13,26,15,0.92);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px 20px;
+    opacity: 0; pointer-events: none; transition: opacity 0.4s;
+    backdrop-filter: blur(8px);
+  }
+  .share-modal.open { opacity: 1; pointer-events: all; }
+  .share-modal-label {
+    font-size: 7.5px; letter-spacing: 0.4em; color: var(--gold);
+    text-transform: uppercase; margin-bottom: 16px;
+  }
+  .share-modal canvas {
+    max-width: 100%; border-radius: 2px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.7);
+  }
+  .share-modal-actions {
+    display: flex; gap: 10px; margin-top: 18px; width: 100%; max-width: 340px;
+  }
+  .btn-modal {
+    flex: 1; padding: 12px; border-radius: 2px; cursor: pointer;
+    font-family: 'Montserrat', sans-serif; font-weight: 300;
+    font-size: 8px; letter-spacing: 0.3em; text-transform: uppercase;
+    transition: all 0.3s;
+  }
+  .btn-modal-download {
+    background: var(--gold); color: var(--forest); border: 1px solid var(--gold);
+  }
+  .btn-modal-download:hover { background: var(--gold-light); }
+  .btn-modal-close {
+    background: transparent; color: var(--muted);
+    border: 1px solid rgba(201,168,76,0.25);
+  }
+  .btn-modal-close:hover { border-color: rgba(201,168,76,0.5); color: var(--cream); }
+
   @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
   @media (max-width: 380px) { .wonder-photo { height: 75px; } .wonder-name { font-size: 14px; } }
 </style>
@@ -358,6 +419,16 @@
   <div class="spa-section">
     <p class="spa-label">Spa · Wellness</p>
     <div class="spa-grid" id="spaGrid"></div>
+  </div>
+
+  <!-- Share card -->
+  <div class="share-section">
+    <button class="btn-share" id="btnShare" onclick="generateShareCard()">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/>
+      </svg>
+      <span id="shareLabel">Llevarme este Wonder</span>
+    </button>
   </div>
 
   <footer>
@@ -515,6 +586,151 @@ function initFromURL() {
 
 renderGrid();
 initFromURL();
+
+/* ── Share card generator ── */
+const shareModal = document.createElement('div');
+shareModal.className = 'share-modal';
+shareModal.id = 'shareModal';
+shareModal.innerHTML = `
+  <p class="share-modal-label">Tu Wonder · Listo para compartir</p>
+  <canvas id="shareCanvas" width="1080" height="1080"></canvas>
+  <div class="share-modal-actions">
+    <button class="btn-modal btn-modal-download" onclick="downloadCard()">Guardar imagen</button>
+    <button class="btn-modal btn-modal-close" onclick="closeShareModal()">Cerrar</button>
+  </div>`;
+document.body.appendChild(shareModal);
+
+function generateShareCard() {
+  const item = ALL[currentIndex];
+  const btn = document.getElementById('btnShare');
+  const lbl = document.getElementById('shareLabel');
+  btn.classList.add('generating');
+  lbl.textContent = 'Creando…';
+
+  const canvas = document.getElementById('shareCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = 1080, H = 1080;
+  canvas.width = W; canvas.height = H;
+
+  function drawCard(bgImg) {
+    ctx.clearRect(0, 0, W, H);
+
+    // Background photo or gradient fallback
+    if (bgImg && bgImg.complete && bgImg.naturalWidth > 0) {
+      const scale = Math.max(W / bgImg.naturalWidth, H / bgImg.naturalHeight);
+      const sw = bgImg.naturalWidth * scale;
+      const sh = bgImg.naturalHeight * scale;
+      ctx.drawImage(bgImg, (W - sw) / 2, (H - sh) / 2, sw, sh);
+    } else {
+      const grad = ctx.createLinearGradient(0, 0, W, H);
+      grad.addColorStop(0, '#1a2e1c');
+      grad.addColorStop(1, '#0d1a0f');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // Dark vignette
+    const vig = ctx.createLinearGradient(0, 0, 0, H);
+    vig.addColorStop(0,   'rgba(13,26,15,0.55)');
+    vig.addColorStop(0.4, 'rgba(13,26,15,0.35)');
+    vig.addColorStop(1,   'rgba(13,26,15,0.90)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, W, H);
+
+    // Gold top line
+    const goldLine = (y, h2) => {
+      const g = ctx.createLinearGradient(0, 0, W, 0);
+      g.addColorStop(0, 'transparent');
+      g.addColorStop(0.5, 'rgba(201,168,76,0.75)');
+      g.addColorStop(1, 'transparent');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, y, W, h2);
+    };
+    goldLine(0, 2);
+    goldLine(H - 2, 2);
+
+    ctx.textAlign = 'center';
+
+    // CAREYES eyebrow
+    ctx.font = '300 32px Montserrat, sans-serif';
+    ctx.fillStyle = 'rgba(201,168,76,0.85)';
+    ctx.fillText('C A R E Y E S', W / 2, 88);
+
+    // Wonder number
+    ctx.font = '300 26px Montserrat, sans-serif';
+    ctx.fillStyle = 'rgba(201,168,76,0.55)';
+    ctx.fillText(item.number.toUpperCase(), W / 2, H / 2 - 140);
+
+    // Short gold divider
+    ctx.beginPath();
+    ctx.moveTo(W/2 - 50, H/2 - 108);
+    ctx.lineTo(W/2 + 50, H/2 - 108);
+    ctx.strokeStyle = 'rgba(201,168,76,0.45)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Wonder name — large serif, handle long names
+    ctx.font = '300 92px "Cormorant Garamond", Georgia, serif';
+    ctx.fillStyle = '#f5f0e8';
+    const name = item.name;
+    const nameWidth = ctx.measureText(name).width;
+    if (nameWidth > W - 100) {
+      const words = name.split(' ');
+      const mid = Math.ceil(words.length / 2);
+      ctx.fillText(words.slice(0, mid).join(' '), W / 2, H / 2 + 10);
+      ctx.fillText(words.slice(mid).join(' '),    W / 2, H / 2 + 108);
+    } else {
+      ctx.fillText(name, W / 2, H / 2 + 40);
+    }
+
+    // Descriptor italic
+    ctx.font = 'italic 300 32px "Cormorant Garamond", Georgia, serif';
+    ctx.fillStyle = 'rgba(245,240,232,0.5)';
+    ctx.fillText(item.sub, W / 2, H / 2 + 185);
+
+    // Bottom divider
+    goldLine(H - 148, 1);
+
+    // MiZen footer
+    ctx.font = '200 24px Montserrat, sans-serif';
+    ctx.fillStyle = 'rgba(245,240,232,0.28)';
+    ctx.fillText('M I Z E N  ·  S O U N D  A R C H I T E C T U R E', W / 2, H - 90);
+
+    ctx.font = '200 20px Montserrat, sans-serif';
+    ctx.fillStyle = 'rgba(245,240,232,0.16)';
+    ctx.fillText('careyes.mizenia.com', W / 2, H - 52);
+
+    btn.classList.remove('generating');
+    lbl.textContent = 'Llevarme este Wonder';
+    document.getElementById('shareModal').classList.add('open');
+  }
+
+  // Load photo with crossOrigin — fallback to gradient on error
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload  = () => drawCard(img);
+  img.onerror = () => drawCard(null);
+  img.src = item.img || '';
+  if (!item.img) drawCard(null);
+}
+
+function downloadCard() {
+  const item = ALL[currentIndex];
+  const a = document.createElement('a');
+  a.download = 'careyes-' + item.id + '.png';
+  a.href = document.getElementById('shareCanvas').toDataURL('image/png');
+  a.click();
+}
+
+function closeShareModal() {
+  document.getElementById('shareModal').classList.remove('open');
+}
+
+// Close on backdrop tap
+document.addEventListener('click', e => {
+  const modal = document.getElementById('shareModal');
+  if (e.target === modal) closeShareModal();
+});
 </script>
 </body>
 </html>
