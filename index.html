@@ -419,7 +419,7 @@ function makeCard(item, idx) {
   btn.id = 'card-'+item.id;
   btn.onclick = () => selectItem(idx, true);
   btn.innerHTML = `
-    <div class="wonder-photo" data-wonder="${item.id}"></div>
+    <div class="wonder-photo" data-wonder="${item.id}" style="background-image: url('${item.img}')"></div>
     <div class="wonder-info">
       <span class="wonder-number">${item.number}</span>
       <span class="wonder-name">${item.name}</span>
